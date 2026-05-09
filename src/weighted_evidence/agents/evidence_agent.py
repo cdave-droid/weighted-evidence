@@ -17,6 +17,7 @@ from weighted_evidence.config import settings as load_settings
 from weighted_evidence.llm.base import LLMProvider
 from weighted_evidence.models import (
     PICO,
+    Amstar2Assessment,
     CitationContext,
     Comparison,
     FindingsCard,
@@ -25,6 +26,8 @@ from weighted_evidence.models import (
     Ranking,
     ReliabilityTier,
     RetractionStatus,
+    RoB2Assessment,
+    RobinsIAssessment,
     StudyDesign,
     WeightedEvidenceReport,
 )
@@ -41,7 +44,13 @@ from weighted_evidence.retrieval.retraction import (
     pubmed_retraction_check,
 )
 from weighted_evidence.retrieval.semantic_scholar import SemanticScholarClient
-from weighted_evidence.rubric import score_gis, skeleton_rob2, starting_certainty
+from weighted_evidence.rubric import (
+    score_gis,
+    skeleton_amstar2,
+    skeleton_rob2,
+    skeleton_robins_i,
+    starting_certainty,
+)
 from weighted_evidence.rubric.aggregate import AggregateInput, aggregate_report
 from weighted_evidence.rubric.clinical_significance import (
     annotate as annotate_clinical_significance,
@@ -146,7 +155,7 @@ class EvidenceAgent:
     ) -> WeightedEvidenceReport:
         enriched = self._enrich_design(paper)
         grade = skeleton_grade(enriched.design)
-        rob = skeleton_rob2(enriched) if enriched.design == StudyDesign.rct else None
+        rob = _select_rob_tool(enriched)
         gis = score_gis(enriched, citation_context=citation_context)
         predatory = self._predatory.check(enriched)
         fragility = fragility_for_paper(enriched) if enriched.design == StudyDesign.rct else None
@@ -349,3 +358,31 @@ def _top_outcome_importance(card: FindingsCard) -> str | None:
     if not target:
         return None
     return target[0].importance.value
+
+
+_RCT_LIKE = {StudyDesign.rct, StudyDesign.cluster_rct, StudyDesign.crossover_rct}
+_SR_LIKE = {StudyDesign.systematic_review, StudyDesign.meta_analysis}
+_NRSI_LIKE = {
+    StudyDesign.cohort,
+    StudyDesign.case_control,
+    StudyDesign.controlled_before_after,
+    StudyDesign.interrupted_time_series,
+    StudyDesign.comparative_effectiveness,
+}
+
+
+def _select_rob_tool(
+    paper: Paper,
+) -> Amstar2Assessment | RoB2Assessment | RobinsIAssessment | None:
+    """Pick the design-appropriate RoB tool: RoB 2, AMSTAR-2, or ROBINS-I.
+
+    Returns None when none applies (e.g., editorials, narrative reviews).
+    """
+
+    if paper.design in _RCT_LIKE:
+        return skeleton_rob2(paper)
+    if paper.design in _SR_LIKE:
+        return skeleton_amstar2(paper)
+    if paper.design in _NRSI_LIKE:
+        return skeleton_robins_i(paper)
+    return None
