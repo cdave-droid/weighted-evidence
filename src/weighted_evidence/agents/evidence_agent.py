@@ -16,6 +16,7 @@ from weighted_evidence.config import Settings
 from weighted_evidence.config import settings as load_settings
 from weighted_evidence.llm.base import LLMProvider
 from weighted_evidence.models import (
+    FindingsCard,
     Paper,
     PredatoryFlag,
     RetractionStatus,
@@ -24,9 +25,13 @@ from weighted_evidence.models import (
 )
 from weighted_evidence.parsing import classify_design, extract_pico_naive
 from weighted_evidence.parsing.abstract import extract_sample_size
+from weighted_evidence.parsing.outcomes import extract_outcomes
 from weighted_evidence.retrieval import RetrievalClient
 from weighted_evidence.rubric import score_gis, skeleton_rob2, starting_certainty
 from weighted_evidence.rubric.aggregate import AggregateInput, aggregate_report
+from weighted_evidence.rubric.clinical_significance import (
+    annotate as annotate_clinical_significance,
+)
 from weighted_evidence.rubric.grade import skeleton_grade
 
 
@@ -110,6 +115,17 @@ class EvidenceAgent:
             n = extract_sample_size(base.abstract)
             if n is not None:
                 base = base.model_copy(update={"sample_size": n})
+        if not base.outcomes and base.abstract:
+            extracted = extract_outcomes(base.abstract)
+            if extracted:
+                base = base.model_copy(
+                    update={"outcomes": annotate_clinical_significance(extracted)}
+                )
 
         starting_certainty(base.design)
         return base
+
+    def card(self, paper: Paper) -> FindingsCard:
+        """Convenience wrapper: grade then return only the FindingsCard."""
+
+        return self.grade_paper(paper).card

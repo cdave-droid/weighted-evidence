@@ -68,7 +68,14 @@ src = ["src", "mcp_server", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
-ignore = ["E501"]
+ignore = [
+  "E501",
+  # Medical literature uses Unicode en-dash (U+2013) and similar in numeric
+  # ranges and rationale strings; allow these without lint noise.
+  "RUF001",
+  "RUF002",
+  "RUF003",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B", "N"]

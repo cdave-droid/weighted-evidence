@@ -25,7 +25,29 @@ def grade(
     identifier: str = typer.Argument(..., help="DOI, PMID, or PMCID."),
     pretty: bool = typer.Option(True, "--pretty/--raw", help="Pretty-print or raw JSON."),
 ) -> None:
-    """Fetch and grade a single paper, emitting its FindingsCard JSON."""
+    """Fetch and grade a single paper, emitting its full WeightedEvidenceReport JSON."""
+
+    console = Console()
+
+    async def run() -> str:
+        async with EvidenceAgent() as agent:
+            report = await agent.grade(identifier)
+        return report.model_dump_json(indent=2 if pretty else None)
+
+    payload = asyncio.run(run())
+    if pretty:
+        console.print(Panel.fit("Weighted evidence report", style="bold cyan"))
+        console.print(JSON(payload))
+    else:
+        typer.echo(payload)
+
+
+@app.command()
+def card(
+    identifier: str = typer.Argument(..., help="DOI, PMID, or PMCID."),
+    pretty: bool = typer.Option(True, "--pretty/--raw", help="Pretty-print or raw JSON."),
+) -> None:
+    """Emit only the agent-facing FindingsCard JSON (stable schema)."""
 
     console = Console()
 
