@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">10793162</PMID>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0028-4793</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>342</Volume>
+            <Issue>18</Issue>
+            <PubDate>
+              <Year>2000</Year>
+              <Month>May</Month>
+              <Day>4</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>The New England journal of medicine</Title>
+          <ISOAbbreviation>N Engl J Med</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Ventilation with lower tidal volumes as compared with traditional tidal volumes for acute lung injury and the acute respiratory distress syndrome.</ArticleTitle>
+        <Abstract>
+          <AbstractText Label="BACKGROUND">Traditional approaches to mechanical ventilation use tidal volumes of 10 to 15 ml per kilogram of body weight and may cause stretch-induced lung injury in patients with acute lung injury and the acute respiratory distress syndrome. We conducted a multicenter, randomized trial comparing traditional tidal volumes with lower tidal volumes.</AbstractText>
+          <AbstractText Label="METHODS">Patients with acute lung injury and the acute respiratory distress syndrome were enrolled in a randomized trial. The trial compared traditional ventilation with an initial tidal volume of 12 ml per kilogram of predicted body weight and a plateau pressure of 50 cm of water or less, with ventilation with a lower tidal volume of 6 ml per kilogram of predicted body weight and a plateau pressure of 30 cm of water or less. The primary outcomes were death before a patient was discharged home and breathing without assistance and the number of days without ventilator use during the first 28 days. n = 861.</AbstractText>
+          <AbstractText Label="RESULTS">The trial was stopped after the enrollment of 861 patients because mortality was lower in the group treated with lower tidal volumes than in the group treated with traditional tidal volumes (31.0 percent vs. 39.8 percent, P = 0.007).</AbstractText>
+          <AbstractText Label="CONCLUSIONS">In patients with acute lung injury and the acute respiratory distress syndrome, mechanical ventilation with a lower tidal volume than is traditionally used results in decreased mortality and increases the number of days without ventilator use.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <CollectiveName>The Acute Respiratory Distress Syndrome Network</CollectiveName>
+          </Author>
+        </AuthorList>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D016448">Multicenter Study</PublicationType>
+          <PublicationType UI="D016449">Randomized Controlled Trial</PublicationType>
+          <PublicationType UI="D013485">Research Support, U.S. Gov't, P.H.S.</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D055371" MajorTopicYN="N">Acute Lung Injury</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012128" MajorTopicYN="N">Respiratory Distress Syndrome</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+      <KeywordList Owner="NOTNLM">
+        <Keyword MajorTopicYN="N">low tidal volume ventilation</Keyword>
+        <Keyword MajorTopicYN="N">ARDS</Keyword>
+      </KeywordList>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">10793162</ArticleId>
+        <ArticleId IdType="doi">10.1056/NEJM200005043421801</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

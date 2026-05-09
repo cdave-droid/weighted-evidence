@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "weighted-evidence"
+version = "0.1.0"
+description = "Open-source framework for grading and ranking biomedical papers so AI agents weight evidence the way the literature itself does."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "weighted-evidence contributors" }]
+keywords = ["evidence-based-medicine", "GRADE", "RoB-2", "AMSTAR-2", "ROBINS-I", "MCP", "biomedical", "agents"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Healthcare Industry",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = [
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "httpx>=0.27",
+  "tenacity>=8.4",
+  "typer>=0.12",
+  "rich>=13.7",
+  "sqlite-utils>=3.36",
+  "jinja2>=3.1",
+  "anthropic>=0.34",
+  "lxml>=5.2",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.40"]
+mcp = ["mcp>=1.0"]
+dev = [
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "pytest-recording>=0.13",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "types-lxml>=2024.4",
+  "pre-commit>=3.7",
+]
+
+[project.scripts]
+weighted-evidence = "weighted_evidence.cli:app"
+weighted-evidence-mcp = "mcp_server.server:run"
+
+[project.urls]
+Homepage = "https://github.com/cdave-droid/weighted-evidence"
+Repository = "https://github.com/cdave-droid/weighted-evidence"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/weighted_evidence", "mcp_server"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/mcp_server", "/README.md", "/LICENSE", "/CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "mcp_server", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "N"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+packages = ["weighted_evidence"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["sqlite_utils.*", "lxml.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "integration: hits external APIs unless cassette is present",
+]

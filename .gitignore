@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+.tox/
+.nox/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Caches
+.cache/
+.weighted_evidence_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Local artifacts
+*.sqlite
+*.sqlite-journal
