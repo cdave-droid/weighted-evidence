@@ -18,7 +18,7 @@ import math
 from datetime import datetime
 from typing import Protocol
 
-from weighted_evidence.models import GuidelineImpactScore, Paper
+from weighted_evidence.models import CitationContext, GuidelineImpactScore, Paper
 
 # A coarse, deliberately conservative journal-tier table. Override / expand
 # as needed; this is a Phase 1 placeholder, not a definitive ranking.
@@ -68,16 +68,40 @@ class GISModel(Protocol):
     def score(self, paper: Paper) -> GuidelineImpactScore: ...
 
 
+def _citation_context_signal(context: CitationContext | None) -> tuple[int, float]:
+    """Translate citation contexts into (replication_count, normalized_signal).
+
+    Returns (count, signal). The signal is a [0,1] score reflecting *how* the
+    field treats the paper: supportive citations push it up, disputing pull
+    it down, methodological/mention citations are neutral. When there are no
+    contexts, returns (0, 0.5) — neutral.
+    """
+
+    if context is None or context.total == 0:
+        return 0, 0.5
+    weighted = context.supportive * 1.0 + context.methodological * 0.6 + context.mentioning * 0.4
+    weighted -= context.disputing * 0.8
+    weighted = max(0.0, weighted)
+    signal = min(1.0, math.log10(weighted + 1) / math.log10(50))
+    return context.total, signal
+
+
 class RuleV0GISModel:
     version: str = "rule-v0"
 
-    def score(self, paper: Paper) -> GuidelineImpactScore:
+    def score(
+        self,
+        paper: Paper,
+        *,
+        citation_context: CitationContext | None = None,
+    ) -> GuidelineImpactScore:
         jt = _journal_tier(paper.journal)
         ls = _log_sample_size(paper)
-        rc = 0.0  # Replication count placeholder until citation-context is wired (PR 4).
+        replication_count, citation_signal = _citation_context_signal(citation_context)
         rd = _recency_decay(paper)
 
-        score = 0.4 * jt + 0.3 * ls + 0.2 * rc + 0.1 * rd
+        # Citation context replaces the raw replication-count term: weight 0.2.
+        score = 0.4 * jt + 0.3 * ls + 0.2 * citation_signal + 0.1 * rd
         score = max(0.0, min(1.0, score))
         return GuidelineImpactScore(
             score=score,
@@ -85,11 +109,18 @@ class RuleV0GISModel:
             fine_tune_pending=True,
             journal_tier=jt,
             log_sample_size=ls,
-            replication_count=int(rc),
+            replication_count=replication_count,
             recency_decay=rd,
             guideline_citations=[],
         )
 
 
-def score_gis(paper: Paper, model: GISModel | None = None) -> GuidelineImpactScore:
-    return (model or RuleV0GISModel()).score(paper)
+def score_gis(
+    paper: Paper,
+    model: GISModel | None = None,
+    *,
+    citation_context: CitationContext | None = None,
+) -> GuidelineImpactScore:
+    if model is None:
+        return RuleV0GISModel().score(paper, citation_context=citation_context)
+    return model.score(paper)
