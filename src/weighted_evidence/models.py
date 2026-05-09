@@ -456,3 +456,29 @@ class WeightedEvidenceReport(BaseModel):
     @property
     def reliability_tier(self) -> ReliabilityTier:
         return self.card.reliability_tier
+
+
+class PairwiseRationale(BaseModel):
+    """Why one paper ranks above another. Returned by `EvidenceAgent.compare()`."""
+
+    winner_id: str | None
+    """None when the comparison is inconclusive (effective tie)."""
+    loser_id: str | None
+    reasons: list[str] = Field(default_factory=list)
+    score_delta: float | None = None
+    tier_difference: bool = False
+
+
+class Comparison(BaseModel):
+    """Pairwise comparison + a final ordering."""
+
+    ordered: list[FindingsCard]
+    pairwise: list[PairwiseRationale] = Field(default_factory=list)
+
+
+class Ranking(BaseModel):
+    """Query-conditioned ranking. Each entry carries its weighted score for the query."""
+
+    query: PICO | None = None
+    cards: list[FindingsCard]
+    rationale: str

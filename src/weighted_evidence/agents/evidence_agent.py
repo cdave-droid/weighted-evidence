@@ -18,8 +18,12 @@ from weighted_evidence.llm.base import LLMProvider
 from weighted_evidence.models import (
     PICO,
     CitationContext,
+    Comparison,
     FindingsCard,
+    PairwiseRationale,
     Paper,
+    Ranking,
+    ReliabilityTier,
     RetractionStatus,
     StudyDesign,
     WeightedEvidenceReport,
@@ -198,3 +202,150 @@ class EvidenceAgent:
         """Convenience wrapper: grade then return only the FindingsCard."""
 
         return self.grade_paper(paper).card
+
+    # ------------------------------------------------------------------
+    # Agent ranking surface
+    # ------------------------------------------------------------------
+
+    async def grade_many(
+        self,
+        identifiers: list[str],
+        *,
+        query: PICO | None = None,
+    ) -> list[WeightedEvidenceReport]:
+        """Grade multiple papers concurrently, sharing one retrieval client."""
+
+        import asyncio
+
+        coros = [self.grade(i, query=query) for i in identifiers]
+        return list(await asyncio.gather(*coros))
+
+    async def rank(
+        self,
+        identifiers: list[str],
+        *,
+        query: PICO | None = None,
+    ) -> Ranking:
+        """Query-conditioned ranking. When `query` is None this is just a sort by
+        final_score; supplying a query routes the directness signal into the
+        aggregate so per-paper scores reflect the query.
+        """
+
+        reports = await self.grade_many(identifiers, query=query)
+        ordered = sorted(
+            reports,
+            key=lambda r: (
+                _tier_rank(r.card.reliability_tier),
+                r.card.final_score if r.card.final_score is not None else -1.0,
+            ),
+            reverse=True,
+        )
+        rationale = (
+            f"Ranked {len(ordered)} papers"
+            + (
+                f" against query population='{query.population}'"
+                if query and query.population
+                else ""
+            )
+            + ". Order reflects reliability_tier first, then final_score; retracted "
+            + "papers sort to the bottom."
+        )
+        return Ranking(
+            query=query,
+            cards=[r.card for r in ordered],
+            rationale=rationale,
+        )
+
+    async def compare(
+        self,
+        identifiers: list[str],
+        *,
+        query: PICO | None = None,
+    ) -> Comparison:
+        """Pairwise comparison. Each (winner, loser) pair carries an explicit list
+        of reasons drawn from the difference in their FindingsCards.
+        """
+
+        ranking = await self.rank(identifiers, query=query)
+        cards = ranking.cards
+        pairwise: list[PairwiseRationale] = []
+        for i, winner in enumerate(cards):
+            for loser in cards[i + 1 :]:
+                pairwise.append(_pairwise(winner, loser))
+        return Comparison(ordered=cards, pairwise=pairwise)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for compare/rank
+# ---------------------------------------------------------------------------
+
+
+_TIER_ORDER = {
+    ReliabilityTier.rely: 4,
+    ReliabilityTier.use_with_caution: 3,
+    ReliabilityTier.weak_signal: 2,
+    ReliabilityTier.do_not_rely: 1,
+    ReliabilityTier.retracted: 0,
+}
+
+
+def _tier_rank(tier: ReliabilityTier) -> int:
+    return _TIER_ORDER.get(tier, 0)
+
+
+def _pairwise(winner: FindingsCard, loser: FindingsCard) -> PairwiseRationale:
+    reasons: list[str] = []
+    tier_diff = winner.reliability_tier != loser.reliability_tier
+    if tier_diff:
+        reasons.append(
+            f"reliability_tier: {winner.reliability_tier.value} > {loser.reliability_tier.value}"
+        )
+    if winner.grade and loser.grade and winner.grade.final_certainty != loser.grade.final_certainty:
+        reasons.append(
+            f"GRADE: {winner.grade.final_certainty.value} > {loser.grade.final_certainty.value}"
+        )
+    w_outcome = _top_outcome_importance(winner)
+    l_outcome = _top_outcome_importance(loser)
+    if w_outcome and l_outcome and w_outcome != l_outcome:
+        reasons.append(f"primary outcome importance: {w_outcome} > {l_outcome}")
+    if winner.gis and loser.gis and (winner.gis.score - loser.gis.score) > 0.05:
+        reasons.append(
+            f"GIS: {winner.gis.score:.2f} > {loser.gis.score:.2f} "
+            f"(supportive citations / journal tier)"
+        )
+    if winner.fragility and loser.fragility and winner.fragility.index > loser.fragility.index + 3:
+        reasons.append(
+            f"fragility: {winner.fragility.index} events vs "
+            f"{loser.fragility.index} events to flip significance"
+        )
+    if (
+        winner.pico_match
+        and loser.pico_match
+        and winner.pico_match.overall - loser.pico_match.overall > 0.1
+    ):
+        reasons.append(
+            f"PICO directness vs query: {winner.pico_match.overall:.2f} "
+            f"> {loser.pico_match.overall:.2f}"
+        )
+    delta = None
+    if winner.final_score is not None and loser.final_score is not None:
+        delta = winner.final_score - loser.final_score
+    if not reasons:
+        reasons.append(
+            "no qualitative differentiator surfaced; ranking driven by raw final_score difference"
+        )
+    return PairwiseRationale(
+        winner_id=winner.id,
+        loser_id=loser.id,
+        reasons=reasons,
+        score_delta=delta,
+        tier_difference=tier_diff,
+    )
+
+
+def _top_outcome_importance(card: FindingsCard) -> str | None:
+    primaries = [o for o in card.outcomes if o.is_primary]
+    target = primaries or card.outcomes
+    if not target:
+        return None
+    return target[0].importance.value

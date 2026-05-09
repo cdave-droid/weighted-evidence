@@ -33,7 +33,8 @@ def _dimension_score(
 ) -> PICODimensionMatch:
     if not query_value:
         return PICODimensionMatch(
-            dimension=dim,            score=1.0,
+            dimension=dim,
+            score=1.0,
             mismatch=None,
         )
     pa, qa = _tokens(paper_value), _tokens(query_value)
@@ -50,7 +51,8 @@ def _dimension_score(
             f"query asked about '{query_value[:80]}'."
         )
     return PICODimensionMatch(
-        dimension=dim,        score=score,
+        dimension=dim,
+        score=score,
         mismatch=mismatch,
     )
 

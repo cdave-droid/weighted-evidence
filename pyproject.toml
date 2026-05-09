@@ -79,6 +79,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B", "N"]
+# Typer relies on call-in-default for Argument/Option; that's the canonical idiom.
+"src/weighted_evidence/cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"
