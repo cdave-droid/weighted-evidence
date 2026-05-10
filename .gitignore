@@ -38,3 +38,4 @@ env/
 # Local artifacts
 *.sqlite
 *.sqlite-journal
+dist/
