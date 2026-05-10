@@ -15,6 +15,12 @@ from weighted_evidence.cache import Cache, open_cache
 from weighted_evidence.config import Settings
 from weighted_evidence.config import settings as load_settings
 from weighted_evidence.llm.base import LLMProvider
+from weighted_evidence.llm.rubric_calls import (
+    refine_grade,
+    refine_outcomes,
+    refine_rob2,
+    refine_spin,
+)
 from weighted_evidence.models import (
     PICO,
     Amstar2Assessment,
@@ -109,12 +115,83 @@ class EvidenceAgent:
         paper = await retrieval.fetch(identifier)
         retraction = await check_retraction(paper, rw_source=self._retraction_watch)
         citation_context = await self._fetch_citation_context(paper)
-        return self._grade(
+        if self._llm is not None:
+            paper = await self._llm_enrich_paper(paper)
+        report = self._grade(
             paper,
             retraction=retraction,
             citation_context=citation_context,
             query=query,
         )
+        if self._llm is not None:
+            report = await self._llm_enrich_report(report)
+        return report
+
+    async def _llm_enrich_paper(self, paper: Paper) -> Paper:
+        """Use the LLM to normalize outcomes before scoring."""
+
+        if self._llm is None:
+            return paper
+        try:
+            outcomes = await refine_outcomes(paper, llm=self._llm)
+        except Exception:
+            return paper
+        if outcomes:
+            from weighted_evidence.rubric.clinical_significance import (
+                annotate as annotate_clinical_significance,
+            )
+
+            return paper.model_copy(update={"outcomes": annotate_clinical_significance(outcomes)})
+        return paper
+
+    async def _llm_enrich_report(self, report: WeightedEvidenceReport) -> WeightedEvidenceReport:
+        """Refine GRADE modifiers, RoB 2 domains, and spin via the LLM, then re-aggregate."""
+
+        if self._llm is None:
+            return report
+        paper = report.paper
+        card = report.card
+
+        try:
+            new_grade = await refine_grade(paper, card.grade, llm=self._llm) if card.grade else None
+        except Exception:
+            new_grade = card.grade
+
+        new_rob: RoB2Assessment | Amstar2Assessment | RobinsIAssessment | None = card.rob
+        if isinstance(card.rob, RoB2Assessment):
+            try:
+                new_rob = await refine_rob2(paper, card.rob, llm=self._llm)
+            except Exception:
+                new_rob = card.rob
+
+        try:
+            new_spin = await refine_spin(paper, llm=self._llm)
+        except Exception:
+            new_spin = card.spin
+        new_spin = new_spin or card.spin
+
+        if new_grade is None:
+            return report
+
+        # Re-aggregate so reliability_tier + final_score reflect the refined inputs.
+        from weighted_evidence.rubric.aggregate import AggregateInput, aggregate_report
+
+        new_card = aggregate_report(
+            AggregateInput(
+                paper=paper,
+                grade=new_grade,
+                rob=new_rob,
+                gis=card.gis,  # type: ignore[arg-type]
+                pico_match=card.pico_match,
+                fragility=card.fragility,
+                spin=new_spin,
+                retraction=card.retraction,
+                predatory=card.predatory,
+            ),
+        )
+        if card.citation_context is not None:
+            new_card = new_card.model_copy(update={"citation_context": card.citation_context})
+        return report.model_copy(update={"card": new_card})
 
     async def _fetch_citation_context(self, paper: Paper) -> CitationContext | None:
         if self._semantic_scholar is None:
