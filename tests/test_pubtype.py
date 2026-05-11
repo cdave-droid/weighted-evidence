@@ -30,3 +30,43 @@ def test_mesh_fallback_for_observational() -> None:
 
 def test_unknown_when_silent() -> None:
     assert classify_design(["Journal Article"]) == StudyDesign.unknown
+
+
+def test_registry_analysis_in_title_classifies_cohort() -> None:
+    """Surgisphere case: pub types didn't include observational, but title did."""
+
+    assert (
+        classify_design(
+            ["Journal Article", "Retracted Publication"],
+            title="HCQ for COVID-19: a multinational registry analysis",
+        )
+        == StudyDesign.cohort
+    )
+
+
+def test_prospective_cohort_in_title() -> None:
+    assert (
+        classify_design([], title="A prospective cohort study of sepsis outcomes")
+        == StudyDesign.cohort
+    )
+
+
+def test_case_control_in_title() -> None:
+    assert (
+        classify_design([], title="Vaccination and stroke: a case-control study")
+        == StudyDesign.case_control
+    )
+
+
+def test_cross_sectional_in_title() -> None:
+    assert (
+        classify_design([], title="HPV prevalence: a cross-sectional survey")
+        == StudyDesign.cross_sectional
+    )
+
+
+def test_observational_study_in_title() -> None:
+    assert (
+        classify_design([], title="Statins and dementia: an observational study")
+        == StudyDesign.cohort
+    )
