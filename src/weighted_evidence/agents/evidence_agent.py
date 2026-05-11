@@ -236,7 +236,10 @@ class EvidenceAgent:
         gis = score_gis(enriched, citation_context=citation_context)
         predatory = self._predatory.check(enriched)
         fragility = fragility_for_paper(enriched) if enriched.design == StudyDesign.rct else None
-        spin = detect_spin(enriched.abstract)
+        # Spin detection compares conclusion to results — much sharper when
+        # we have full body sections, but works on a structured abstract too.
+        spin_text = _best_text_for_spin(enriched)
+        spin = detect_spin(spin_text)
         pico_match = match_pico(enriched.pico, query)
 
         card = aggregate_report(
@@ -270,12 +273,16 @@ class EvidenceAgent:
 
         if base.pico is None and base.abstract:
             base = base.model_copy(update={"pico": extract_pico_naive(base.abstract)})
-        if base.sample_size is None and base.abstract:
-            n = extract_sample_size(base.abstract)
+        # For sample size + outcomes: prefer the full body text when available
+        # (Lancet-style abstracts often only have aggregate summaries; methods
+        # + results sections in the body carry the actual numbers).
+        body_or_abstract = base.body_text or base.abstract
+        if base.sample_size is None and body_or_abstract:
+            n = extract_sample_size(body_or_abstract)
             if n is not None:
                 base = base.model_copy(update={"sample_size": n})
-        if not base.outcomes and base.abstract:
-            extracted = extract_outcomes(base.abstract)
+        if not base.outcomes and body_or_abstract:
+            extracted = extract_outcomes(body_or_abstract)
             if extracted:
                 base = base.model_copy(
                     update={"outcomes": annotate_clinical_significance(extracted)}
@@ -435,6 +442,19 @@ def _top_outcome_importance(card: FindingsCard) -> str | None:
     if not target:
         return None
     return target[0].importance.value
+
+
+def _best_text_for_spin(paper: Paper) -> str | None:
+    """Spin detection wants a structured Conclusion vs Results comparison.
+
+    When body_sections has both we synthesize a structured-abstract-shaped
+    string the existing rule expects; otherwise fall back to the abstract.
+    """
+
+    sections = paper.body_sections or {}
+    if "results" in sections and "conclusions" in sections:
+        return f"Results: {sections['results']}\n\nConclusions: {sections['conclusions']}"
+    return paper.abstract
 
 
 _RCT_LIKE = {StudyDesign.rct, StudyDesign.cluster_rct, StudyDesign.crossover_rct}

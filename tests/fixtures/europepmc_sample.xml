@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article>
+  <front>
+    <article-meta>
+      <title-group><article-title>Sample paper</article-title></title-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Background</title>
+      <p>Acute respiratory distress syndrome remains a major cause of ICU mortality.</p>
+    </sec>
+    <sec>
+      <title>Methods</title>
+      <p>We enrolled 861 patients with ARDS in a randomized trial. The primary outcomes were death before discharge and ventilator-free days.</p>
+    </sec>
+    <sec>
+      <title>Results</title>
+      <p>Mortality was 31.0% vs 39.8%, P = 0.007. Hazard ratio 0.78 (95% CI 0.65 to 0.94).</p>
+    </sec>
+    <sec>
+      <title>Conclusions</title>
+      <p>In patients with ARDS, mechanical ventilation with a lower tidal volume reduces mortality.</p>
+    </sec>
+  </body>
+</article>

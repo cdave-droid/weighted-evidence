@@ -241,6 +241,14 @@ class Paper(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     mesh_terms: list[str] = Field(default_factory=list)
     fulltext_xml: str | None = None
+    body_text: str | None = Field(
+        default=None,
+        description="Plain-text body assembled from full-text sections (when OA via Europe PMC).",
+    )
+    body_sections: dict[str, str] = Field(
+        default_factory=dict,
+        description="Section → text map (e.g. 'methods', 'results', 'discussion', 'conclusions').",
+    )
     pico: PICO | None = None
     design: StudyDesign = StudyDesign.unknown
     outcomes: list[Outcome] = Field(default_factory=list)
