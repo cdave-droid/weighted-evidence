@@ -51,18 +51,24 @@ class _TwoByTwo:
     d: int  # control non-events
 
 
+_MIDDLE_DOT = "·"
 _PCT_PAIR = re.compile(
-    r"(?P<a_pct>\d+\.?\d*)\s*%\s*(?:vs\.?|versus|compared\s+with)\s*(?P<b_pct>\d+\.?\d*)\s*%",
+    r"(?P<a_pct>-?\d+(?:[.·]\d+)?)\s*%\s*(?:vs\.?|versus|compared\s+with)"
+    r"\s*(?P<b_pct>-?\d+(?:[.·]\d+)?)\s*%",
     re.I,
 )
+
+
+def _to_float(s: str) -> float:
+    return float(s.replace(_MIDDLE_DOT, "."))
 
 
 def _build_table(abstract: str, total_n: int) -> _TwoByTwo | None:
     m = _PCT_PAIR.search(abstract)
     if m is None:
         return None
-    pct_t = float(m.group("a_pct")) / 100.0
-    pct_c = float(m.group("b_pct")) / 100.0
+    pct_t = _to_float(m.group("a_pct")) / 100.0
+    pct_c = _to_float(m.group("b_pct")) / 100.0
     # Best-effort: assume balanced groups. Real implementations can refine when
     # the abstract reports group-specific Ns.
     n_t = total_n // 2

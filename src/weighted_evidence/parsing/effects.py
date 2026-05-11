@@ -15,42 +15,73 @@ from weighted_evidence.models import EffectKind, EffectSize, MIDComparison
 
 # Range separators in medical text include hyphen, en-dash (U+2013), and "to".
 _EN_DASH = "–"
+_MIDDLE_DOT = "·"  # U+00B7 — Lancet, BMJ, Cochrane Library use this for decimals.
 _RANGE_SEP = f"(?:[-{_EN_DASH}]|to|,)"
+# Number with optional decimal: matches both "1.335" and "1·335".
+_NUM = rf"-?\d+(?:[.{_MIDDLE_DOT}]\d+)?"
 
 
 # Capture an estimate + 95% CI in any of the common forms:
 #   HR 0.78 (95% CI 0.65 to 0.94)
 #   HR, 0.78; 95% CI, 0.65-0.94
 #   hazard ratio of 0.78 [0.65 to 0.94]
-def _ratio_regex(label_alt: str) -> re.Pattern[str]:
+#   hazard ratio 1·335, 95% CI 1·223-1·457   (Lancet middle-dot decimals)
+def _ratio_regex_bracketed(label_alt: str) -> re.Pattern[str]:
+    """Bracketed CI:  HR 0.78 (95% CI 0.65 to 0.94)"""
+
     return re.compile(
         rf"\b(?:{label_alt})\b"  # measure name
         r"[^0-9(\[\n]{0,40}"  # up to 40 chars of connector text
-        r"(?P<point>-?\d+\.?\d*)"  # point estimate
+        rf"(?P<point>{_NUM})"  # point estimate
         r"\s*[\(\[]\s*"  # opening bracket
         r"(?:95\s*%?\s*CI[\s,:.]*)?"  # optional "95% CI" prefix
-        r"(?P<lo>-?\d+\.?\d*)"  # lower bound
+        rf"(?P<lo>{_NUM})"  # lower bound
         rf"\s*{_RANGE_SEP}\s*"  # separator
-        r"(?P<hi>-?\d+\.?\d*)"  # upper bound
+        rf"(?P<hi>{_NUM})"  # upper bound
         r"[^\)\]]*"  # rest until close (e.g., ", P=0.01")
         r"[\)\]]",  # closing bracket
         re.I,
     )
 
 
+def _ratio_regex_unbracketed(label_alt: str) -> re.Pattern[str]:
+    """Unbracketed CI:  HR 1·335, 95% CI 1·223-1·457   (Lancet style)"""
+
+    return re.compile(
+        rf"\b(?:{label_alt})\b"
+        r"[^0-9(\[\n]{0,40}"
+        rf"(?P<point>{_NUM})"
+        r"[\s,;:]*"  # connector — no opening bracket
+        r"95\s*%?\s*CI[\s,:.]*"  # mandatory "95% CI" prefix
+        rf"(?P<lo>{_NUM})"
+        rf"\s*{_RANGE_SEP}\s*"
+        rf"(?P<hi>{_NUM})",
+        re.I,
+    )
+
+
 _RATIO_PATTERNS: tuple[tuple[re.Pattern[str], EffectKind], ...] = (
-    (_ratio_regex(r"HR|hazard\s+ratio"), EffectKind.hr),
-    (_ratio_regex(r"RR|risk\s+ratio|relative\s+risk"), EffectKind.rr),
-    (_ratio_regex(r"OR|odds\s+ratio"), EffectKind.or_),
+    (_ratio_regex_bracketed(r"HR|hazard\s+ratio"), EffectKind.hr),
+    (_ratio_regex_unbracketed(r"HR|hazard\s+ratio"), EffectKind.hr),
+    (_ratio_regex_bracketed(r"RR|risk\s+ratio|relative\s+risk"), EffectKind.rr),
+    (_ratio_regex_unbracketed(r"RR|risk\s+ratio|relative\s+risk"), EffectKind.rr),
+    (_ratio_regex_bracketed(r"OR|odds\s+ratio"), EffectKind.or_),
+    (_ratio_regex_unbracketed(r"OR|odds\s+ratio"), EffectKind.or_),
 )
 
 # 31.0% vs 39.8%, P = 0.007  → ARR
 _TWO_GROUP_PCT = re.compile(
-    r"(?P<a>\d+\.?\d*)\s*%\s*(?:vs\.?|versus|compared\s+with)\s*(?P<b>\d+\.?\d*)\s*%"
-    r"(?:[^.]*?(?:P|p)\s*[=<]\s*(?P<p>\d+\.?\d*))?",
+    rf"(?P<a>{_NUM})\s*%\s*(?:vs\.?|versus|compared\s+with)\s*(?P<b>{_NUM})\s*%"
+    rf"(?:[^.]*?(?:P|p)\s*[=<]\s*(?P<p>{_NUM}))?",
 )
 
-_P_VALUE = re.compile(r"\b(?:P|p)\s*[=<]\s*(\d+\.?\d*)")
+_P_VALUE = re.compile(rf"\b(?:P|p)\s*[=<]\s*({_NUM})")
+
+
+def _to_float(s: str) -> float:
+    """Parse a number that may use middle dot (U+00B7) or period as decimal."""
+
+    return float(s.replace(_MIDDLE_DOT, "."))
 
 
 @dataclass(frozen=True)
@@ -100,14 +131,14 @@ def extract_effects(text: str) -> list[EffectSize]:
     for pattern, kind in _RATIO_PATTERNS:
         for m in pattern.finditer(text):
             try:
-                point = float(m.group("point"))
-                lo = float(m.group("lo"))
-                hi = float(m.group("hi"))
+                point = _to_float(m.group("point"))
+                lo = _to_float(m.group("lo"))
+                hi = _to_float(m.group("hi"))
             except ValueError:  # pragma: no cover - regex guarantees floats
                 continue
             window = text[m.start() : m.end() + 80]
             p_match = _P_VALUE.search(window)
-            p = float(p_match.group(1)) if p_match else None
+            p = _to_float(p_match.group(1)) if p_match else None
             hits.append(
                 _Hit(
                     kind=kind,
@@ -121,10 +152,10 @@ def extract_effects(text: str) -> list[EffectSize]:
             )
 
     for m in _TWO_GROUP_PCT.finditer(text):
-        a = float(m.group("a")) / 100.0
-        b = float(m.group("b")) / 100.0
+        a = _to_float(m.group("a")) / 100.0
+        b = _to_float(m.group("b")) / 100.0
         arr = b - a
-        p = float(m.group("p")) if m.group("p") else None
+        p = _to_float(m.group("p")) if m.group("p") else None
         hits.append(
             _Hit(
                 kind=EffectKind.arr,

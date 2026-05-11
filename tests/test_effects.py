@@ -56,3 +56,24 @@ def test_two_group_percentages_yield_arr() -> None:
 
 def test_no_match_returns_empty() -> None:
     assert extract_effects("No numeric results in this sentence.") == []
+
+
+def test_lancet_middle_dot_decimal() -> None:
+    """Lancet, BMJ, Cochrane Library use Unicode middle dot (U+00B7) as decimal."""
+
+    text = "hydroxychloroquine (18·0%; hazard ratio 1·335, 95% CI 1·223-1·457)"
+    effects = extract_effects(text)
+    assert effects, "Should extract HR despite middle-dot decimals"
+    hr = next(e for e in effects if e.kind == EffectKind.hr)
+    assert hr.point == 1.335
+    assert hr.ci_low == 1.223
+    assert hr.ci_high == 1.457
+    assert hr.vs_mid == MIDComparison.exceeds
+
+
+def test_middle_dot_two_group_percentages() -> None:
+    text = "Mortality was 18·0% vs 9·3%, P = 0·001"
+    effects = extract_effects(text)
+    arr = next(e for e in effects if e.kind == EffectKind.arr)
+    assert arr.p == 0.001
+    assert abs(arr.point - (0.093 - 0.180)) < 1e-9
